@@ -278,7 +278,7 @@
                 <div id="inputRow">
                     <input type="text" id="inputWord" autocomplete="off" autocorrect="off"
                            autocapitalize="characters" spellcheck="false" enterkeyhint="done"
-                           placeholder="Type the word!">
+                           placeholder="Spell what you hear!">
                     <button id="checkButton">✓ Check</button>
                 </div>
                 <div id="imageContainer">
@@ -286,7 +286,7 @@
                     <div id="loadingIcon">🎨</div>
                 </div>
                 <div id="definition"></div>
-                <button id="speakButton">🔈 Hear it again</button>
+                <button id="speakButton">🔈 Say the word again</button>
                 <div id="awards"></div>
                 <div id="creatureShelf"></div>
             </div>
@@ -680,7 +680,9 @@
             fillQueue(); // top the queue back up in the background
             currentWord = next.word;
             currentDefinition = next.definition;
-            displayWord.textContent = currentWord;
+            // don't show the word — she has to spell what she hears
+            displayWord.classList.remove('correct', 'wrong');
+            displayWord.textContent = Array.from(currentWord).map(() => '_').join(' ');
             definitionEl.textContent = `📖 ${currentDefinition}`;
             inputWord.value = '';
             displayImage(currentWord, next.imagePromise);
@@ -708,35 +710,43 @@
             bestStreakEl.textContent = bestStreak;
         }
 
+        let revealing = false;
         function checkAnswer() {
-            if (!inputWord.value.trim()) return;
+            if (revealing || !inputWord.value.trim()) return;
             const typedWord = inputWord.value.trim().toUpperCase();
             const seconds = (Date.now() - startTime) / 1000;
             const timeTaken = seconds.toFixed(2);
+            const isCorrect = typedWord === currentWord;
             let creature = null;
 
-            if (typedWord === currentWord) {
+            // reveal the word now that she's answered
+            displayWord.textContent = currentWord;
+            displayWord.classList.add(isCorrect ? 'correct' : 'wrong');
+
+            if (isCorrect) {
                 score++;
                 correctStreak++;
                 bestStreak = Math.max(bestStreak, correctStreak);
                 creature = awardCreature();
-                displayWord.classList.add('correct');
-                setTimeout(() => displayWord.classList.remove('correct'), 500);
                 wordList.innerHTML = `<div class="correct">✅ ${typedWord} ${creature.emoji} — ${timeTaken}s</div>` + wordList.innerHTML;
                 playCorrectSound();
                 confetti({ particleCount: 80, spread: 70, origin: { y: 0.7 } });
             } else {
                 correctStreak = 0;
-                displayWord.classList.add('wrong');
-                setTimeout(() => displayWord.classList.remove('wrong'), 500);
-                wordList.innerHTML = `<div class="wrong">❌ ${typedWord} — ${timeTaken}s</div>` + wordList.innerHTML;
+                wordList.innerHTML = `<div class="wrong">❌ ${typedWord} → ${currentWord} — ${timeTaken}s</div>` + wordList.innerHTML;
                 playWrongSound();
             }
-            recordTime(seconds, typedWord === currentWord);
+            recordTime(seconds, isCorrect);
             updateAwards(correctStreak, creature);
             updateStats();
-            nextWord();
-            inputWord.focus();
+
+            // give her a moment to see the spelling — longer after a miss
+            revealing = true;
+            setTimeout(() => {
+                revealing = false;
+                nextWord();
+                inputWord.focus();
+            }, isCorrect ? 1200 : 2500);
         }
 
         startButton.addEventListener('click', () => {
