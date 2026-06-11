@@ -366,6 +366,14 @@
             noticeTimer = setTimeout(() => { aiNotice.style.display = 'none'; }, 15000);
         }
 
+        // once the account is out of credit, stop trying OpenAI for the rest of
+        // the session — otherwise every word stalls through retries before
+        // falling back, which makes the voice take forever
+        let aiDisabled = false;
+        function aiAvailable() {
+            return openaiKey && !aiDisabled;
+        }
+
         async function openaiFetch(url, body, retries = 2) {
             for (let attempt = 0; ; attempt++) {
                 const res = await fetch(url, {
@@ -382,7 +390,12 @@
                     const err = await res.json();
                     if (err.error?.message) message = `${res.status}: ${err.error.message}`;
                 } catch (e) { /* no JSON body */ }
-                if (res.status === 429 && attempt < retries) {
+                const isBillingProblem = /quota|billing/i.test(message);
+                if (isBillingProblem) {
+                    aiDisabled = true;
+                    reportAIIssue('OpenAI account is out of credit — using free fallbacks. Add credits at platform.openai.com, then reload the page.');
+                } else if (res.status === 429 && attempt < retries) {
+                    // a real rate limit recovers on its own — retry with backoff
                     const retryAfter = parseFloat(res.headers.get('retry-after'));
                     const wait = retryAfter > 0 ? retryAfter * 1000 : (attempt + 1) * 5000;
                     await new Promise(resolve => setTimeout(resolve, wait));
@@ -492,10 +505,19 @@
             }
         }
 
+        // dictionary definitions run long — keep the first clause, cap ~14 words
+        function shortenDefinition(def) {
+            if (!def) return def;
+            let text = def.split(/[;,(]/)[0].trim();
+            const words = text.split(/\s+/);
+            if (words.length > 16) text = words.slice(0, 14).join(' ') + '…';
+            return text;
+        }
+
         // With an OpenAI key, rewrite the stiff dictionary definition into a
         // short, kid-friendly description. Falls back to the dictionary one.
         async function kidFriendlyDefinition(word, fallback) {
-            if (!openaiKey) return fallback;
+            if (!aiAvailable()) return fallback;
             try {
                 const res = await openaiFetch('https://api.openai.com/v1/chat/completions', {
                     model: 'gpt-4o-mini',
@@ -522,7 +544,7 @@
                             const word = getRandomCandidate();
                             usedWords.add(word);
                             const dictDefinition = await getDefinition(word);
-                            const definition = await kidFriendlyDefinition(word, dictDefinition || '');
+                            const definition = await kidFriendlyDefinition(word, shortenDefinition(dictDefinition || ''));
                             if (definition) {
                                 // start generating the picture now so it's ready when the word comes up
                                 readyQueue.push({ word, definition, imagePromise: queueImage(word, definition) });
@@ -608,7 +630,7 @@
         async function speak(text) {
             stopSpeaking();
             const requestId = speakRequestId;
-            if (openaiKey) {
+            if (aiAvailable()) {
                 try {
                     await speakOpenAI(text, requestId);
                     return;
@@ -680,13 +702,15 @@
         }
 
         async function makeImage(word, definition) {
-            if (openaiKey) {
+            if (aiAvailable()) {
                 const style = IMAGE_STYLES[Math.floor(Math.random() * IMAGE_STYLES.length)];
                 const prompt = `A ${style} that clearly teaches the meaning of the science word "${word.toLowerCase()}", which means: ${definition}. Scientifically accurate, clear and visually engaging for an elementary school student — informative first, with a touch of charm. No text, letters, labels or words in the image.`;
                 try { return await generateOpenAIImage('gpt-image-1', prompt); }
                 catch (e) { console.warn(`gpt-image-1 failed (${e.message}), trying dall-e-3`); }
-                try { return await generateOpenAIImage('dall-e-3', prompt); }
-                catch (e) { reportAIIssue(`AI images unavailable, using photos — ${e.message}`); }
+                if (aiAvailable()) {
+                    try { return await generateOpenAIImage('dall-e-3', prompt); }
+                    catch (e) { reportAIIssue(`AI images unavailable, using photos — ${e.message}`); }
+                }
             }
             return loremFlickrUrl(word);
         }
