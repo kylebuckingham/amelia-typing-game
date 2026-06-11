@@ -652,7 +652,7 @@
                 n: 1
             };
             if (model === 'gpt-image-1') {
-                body.quality = 'high'; // OpenAI's best image model at its best quality
+                body.quality = 'medium'; // ~6¢/image vs 17¢ at high, and much faster
                 body.moderation = 'low'; // fewer false-positive content rejections
             } else {
                 body.quality = 'hd';
