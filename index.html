@@ -302,6 +302,7 @@
                 </div>
                 <div id="definition"></div>
                 <button id="speakButton">🔈 Say the word again</button>
+                <div style="font-size: 14px; color: #999; margin-top: 4px;">tip: press SPACE to repeat just the word</div>
                 <div id="awards"></div>
                 <div id="creatureShelf"></div>
             </div>
@@ -843,6 +844,15 @@
         checkButton.addEventListener('click', checkAnswer);
         inputWord.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') checkAnswer();
+        });
+
+        // space bar repeats just the word (words never contain spaces)
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== ' ' || gameContainer.style.display !== 'block') return;
+            event.preventDefault(); // don't type a space or scroll the page
+            if (!currentWord || revealing) return;
+            ensureAudioCtx();
+            speak(currentWord);
         });
 
         // start pre-loading words right away so the game starts instantly
