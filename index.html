@@ -448,7 +448,7 @@
         const usedWords = new Set();
         let readyQueue = [];        // [{word, definition, imagePromise}]
         let fillPromise = null;     // in-flight fill, so concurrent callers await the same work
-        let queueTarget = 1;        // before Start: prepare only the first word, keep page load light
+        const queueTarget = 1;      // one word ready: the next one preps while she types the current
 
         // elementary school science vocabulary, 4–7 letters
         const SCIENCE_WORDS = [
@@ -801,7 +801,6 @@
                 readyQueue.length = 0;
             }
             localStorage.setItem('ameliaOpenAIKey', openaiKey);
-            queueTarget = 3; // now that she's playing, keep a few words prepared ahead
             // unlock audio on iPad: must happen inside a user tap
             ensureAudioCtx();
             if ('speechSynthesis' in window) {
