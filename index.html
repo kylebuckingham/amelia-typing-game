@@ -448,6 +448,7 @@
         const usedWords = new Set();
         let readyQueue = [];        // [{word, definition, imagePromise}]
         let fillPromise = null;     // in-flight fill, so concurrent callers await the same work
+        let queueTarget = 1;        // before Start: prepare only the first word, keep page load light
 
         // elementary school science vocabulary, 4–7 letters
         const SCIENCE_WORDS = [
@@ -515,7 +516,7 @@
             if (!fillPromise) {
                 fillPromise = (async () => {
                     try {
-                        while (readyQueue.length < 3) {
+                        while (readyQueue.length < queueTarget) {
                             const word = getRandomCandidate();
                             usedWords.add(word);
                             const dictDefinition = await getDefinition(word);
@@ -655,8 +656,7 @@
                 body.quality = 'medium'; // ~6¢/image vs 17¢ at high, and much faster
                 body.moderation = 'low'; // fewer false-positive content rejections
             } else {
-                body.quality = 'hd';
-                body.response_format = 'b64_json';
+                body.quality = 'hd'; // dall-e-3 returns a hosted image URL by default
             }
             const res = await openaiFetch('https://api.openai.com/v1/images/generations', body);
             const data = await res.json();
@@ -801,6 +801,7 @@
                 readyQueue.length = 0;
             }
             localStorage.setItem('ameliaOpenAIKey', openaiKey);
+            queueTarget = 3; // now that she's playing, keep a few words prepared ahead
             // unlock audio on iPad: must happen inside a user tap
             ensureAudioCtx();
             if ('speechSynthesis' in window) {
