@@ -87,7 +87,7 @@
             box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
         }
         .stat span { font-weight: bold; }
-        #muteButton {
+        #muteButton, #toggleWordButton {
             padding: 10px 20px;
             font-size: 18px;
             font-family: inherit;
@@ -281,6 +281,7 @@
             <div class="stat">🦄 Creatures: <span id="score">0</span></div>
             <div class="stat">🔥 Streak: <span id="streak">0</span></div>
             <div class="stat">🏅 Best: <span id="bestStreak">0</span></div>
+            <button id="toggleWordButton">🙈 Word Hidden</button>
             <button id="muteButton">🔊 Sound On</button>
         </div>
 
@@ -499,7 +500,7 @@
                     model: 'gpt-4o-mini',
                     messages: [{
                         role: 'user',
-                        content: `Explain the science meaning of the word "${word.toLowerCase()}" to an elementary school student in one short, simple, friendly sentence. Do not use the word "${word.toLowerCase()}" or any form of it in the explanation. Reply with only the sentence.`
+                        content: `Explain the science meaning of the word "${word.toLowerCase()}" to an elementary school student in one very short, simple sentence — 12 words or fewer. Do not use the word "${word.toLowerCase()}" or any form of it in the explanation. Reply with only the sentence.`
                     }],
                     max_tokens: 60,
                     temperature: 0.7
@@ -617,8 +618,17 @@
             if (requestId === speakRequestId) speakBrowser(text);
         }
 
+        // hidden by default: she spells what she hears; the toggle shows the word
+        let wordVisible = false;
+        function renderWord() {
+            displayWord.textContent = wordVisible
+                ? currentWord
+                : Array.from(currentWord).map(() => '_').join(' ');
+        }
+
         function speakCurrentWord() {
-            speak(`${currentWord}. ${currentDefinition}`);
+            const description = currentDefinition.replace(/\.+\s*$/, '');
+            speak(`${currentWord}. ${description}. ${currentWord}.`);
         }
 
         // ============ IMAGES ============
@@ -723,9 +733,8 @@
             fillQueue(); // top the queue back up in the background
             currentWord = next.word;
             currentDefinition = next.definition;
-            // don't show the word — she has to spell what she hears
             displayWord.classList.remove('correct', 'wrong');
-            displayWord.textContent = Array.from(currentWord).map(() => '_').join(' ');
+            renderWord();
             definitionEl.textContent = `📖 ${currentDefinition}`;
             inputWord.value = '';
             displayImage(currentWord, next.imagePromise);
@@ -811,6 +820,13 @@
             startScreen.style.display = 'none';
             nextWord();
             inputWord.focus();
+        });
+
+        const toggleWordButton = document.getElementById('toggleWordButton');
+        toggleWordButton.addEventListener('click', () => {
+            wordVisible = !wordVisible;
+            toggleWordButton.textContent = wordVisible ? '👁 Word Shown' : '🙈 Word Hidden';
+            if (currentWord && !revealing) renderWord();
         });
 
         muteButton.addEventListener('click', () => {
